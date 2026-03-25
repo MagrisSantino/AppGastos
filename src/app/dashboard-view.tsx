@@ -53,6 +53,7 @@ import {
   formatCuotaMoney,
   formatMoneyMinorUnits,
 } from "@/lib/money";
+import { LoadingData } from "@/components/loading-data";
 import { cn } from "@/lib/utils";
 import { useExpenseStore } from "@/stores/use-expense-store";
 import type {
@@ -330,6 +331,7 @@ function ChartTooltipBox({ children }: { children: React.ReactNode }) {
 /* ------------------------------------------------------------------ */
 
 export function DashboardView() {
+  const isLoading = useExpenseStore((s) => s.isLoading);
   const weeklyRecords = useExpenseStore((s) => s.weeklyRecords);
   const compras = useExpenseStore((s) => s.installmentPurchases);
   const tarjetas = useExpenseStore((s) => s.tarjetas);
@@ -415,6 +417,8 @@ export function DashboardView() {
     ws.totalDisponible != null && ws.totalAnterior != null
       ? pct(ws.totalDisponible, ws.totalAnterior)
       : null;
+
+  if (isLoading) return <LoadingData />;
 
   return (
     <div className="space-y-8">

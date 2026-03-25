@@ -39,6 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { LoadingData } from "@/components/loading-data";
 import {
   formatMoneyMinorUnits,
   minorUnitsToInputString,
@@ -52,6 +53,7 @@ function defaultMondayISO(): string {
 }
 
 export function ControlSemanalView() {
+  const isLoading = useExpenseStore((s) => s.isLoading);
   const weeklyRecords = useExpenseStore((s) => s.weeklyRecords);
   const saveWeeklySnapshot = useExpenseStore((s) => s.saveWeeklySnapshot);
   const deleteWeeklyRecordById = useExpenseStore((s) => s.deleteWeeklyRecordById);
@@ -102,6 +104,8 @@ export function ControlSemanalView() {
       [...weeklyRecords].sort((a, b) => b.fechaISO.localeCompare(a.fechaISO)),
     [weeklyRecords]
   );
+
+  if (isLoading) return <LoadingData />;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

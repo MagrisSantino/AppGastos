@@ -62,6 +62,7 @@ import {
   minorUnitsToInputString,
   parseMoneyInputToMinorUnits,
 } from "@/lib/money";
+import { LoadingData } from "@/components/loading-data";
 import { cn } from "@/lib/utils";
 import { useExpenseStore } from "@/stores/use-expense-store";
 import type {
@@ -97,6 +98,7 @@ type MontoModo = "total" | "cuota";
 type CuotaDialogMode = "create" | "edit";
 
 export function GestionCuotasView() {
+  const isLoading = useExpenseStore((s) => s.isLoading);
   const compras = useExpenseStore((s) => s.installmentPurchases);
   const tarjetas = useExpenseStore((s) => s.tarjetas);
   const addInstallmentPurchase = useExpenseStore((s) => s.addInstallmentPurchase);
@@ -359,6 +361,8 @@ export function GestionCuotasView() {
   const inputClass =
     "min-h-11 w-full text-base touch-manipulation md:min-h-9 md:text-sm";
   const labelClass = "mb-1.5 block text-sm font-medium text-foreground";
+
+  if (isLoading) return <LoadingData />;
 
   return (
     <div className="space-y-8">

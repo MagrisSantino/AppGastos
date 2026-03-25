@@ -19,6 +19,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { useExpenseStore } from "@/stores/use-expense-store";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -66,6 +67,15 @@ function NavLinks({
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const init = useExpenseStore((s) => s._init);
+  const cloudSyncError = useExpenseStore((s) => s.cloudSyncError);
+  const retrySyncToCloud = useExpenseStore((s) => s.retrySyncToCloud);
+  const clearCloudSyncError = useExpenseStore((s) => s.clearCloudSyncError);
+  const [retrying, setRetrying] = React.useState(false);
+
+  React.useEffect(() => {
+    void init();
+  }, [init]);
 
   return (
     <div className="flex min-h-svh w-full flex-col bg-background md:flex-row">
@@ -120,6 +130,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <main className="flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
           <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6 md:py-8">
+            {cloudSyncError ? (
+              <div
+                role="alert"
+                className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+              >
+                <p className="font-medium">Sincronización con la nube</p>
+                <p className="mt-1 opacity-90">{cloudSyncError}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-800/30 bg-background"
+                    disabled={retrying}
+                    onClick={() => {
+                      setRetrying(true);
+                      void retrySyncToCloud().finally(() =>
+                        setRetrying(false)
+                      );
+                    }}
+                  >
+                    {retrying ? "Subiendo…" : "Reintentar subir a Supabase"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="text-amber-900 dark:text-amber-200"
+                    onClick={() => clearCloudSyncError()}
+                  >
+                    Cerrar aviso
+                  </Button>
+                </div>
+              </div>
+            ) : null}
             {children}
           </div>
         </main>
