@@ -204,7 +204,8 @@ export async function pushPersistedSnapshotToSupabase(
       const { error } = await sb
         .from("weekly_records")
         .upsert(snapshot.weeklyRecords.map(fromWeeklyRecord), {
-          onConflict: "id",
+          /** La tabla tiene unique en fecha_iso; si el id local ≠ nube, igual debe actualizar ese lunes. */
+          onConflict: "fecha_iso",
         });
       if (error) errParts.push(`weekly_records: ${error.message}`);
     }
@@ -261,7 +262,7 @@ export async function upsertWeeklyRecords(records: WeeklyExpenseRecord[]) {
     const sb = getSupabase();
     const { error } = await sb
       .from("weekly_records")
-      .upsert(records.map(fromWeeklyRecord), { onConflict: "id" });
+      .upsert(records.map(fromWeeklyRecord), { onConflict: "fecha_iso" });
     if (error) console.error("upsertWeeklyRecords:", error);
   } catch (err) {
     console.error("upsertWeeklyRecords:", err);
