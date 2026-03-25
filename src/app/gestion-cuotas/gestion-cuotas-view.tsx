@@ -122,13 +122,13 @@ export function GestionCuotasView() {
     "idle" | "loading" | "ok" | "error"
   >("idle");
   const [dolarBlueMeta, setDolarBlueMeta] = React.useState<string | null>(null);
-  /** Clave `${tarjetaId|null}-${moneda}`; una sola fila de detalle abierta a la vez. */
-  const [tarjetaDetalleAbiertaKey, setTarjetaDetalleAbiertaKey] = React.useState<
-    string | null
-  >(null);
+  /** Claves `${tarjetaId|null}-${moneda}`; varias filas de detalle pueden estar abiertas. */
+  const [tarjetaDetalleAbiertaKeys, setTarjetaDetalleAbiertaKeys] = React.useState<
+    Set<string>
+  >(() => new Set());
 
   React.useEffect(() => {
-    setTarjetaDetalleAbiertaKey(null);
+    setTarjetaDetalleAbiertaKeys(new Set());
   }, [mesCuotasVistaISO]);
 
   const [cuotaDialogOpen, setCuotaDialogOpen] = React.useState(false);
@@ -475,6 +475,12 @@ export function GestionCuotasView() {
               "max-sm:translate-x-0 max-sm:translate-y-0",
               "sm:top-1/2 sm:left-1/2 sm:h-auto sm:max-h-[min(90vh,720px)] sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2"
             )}
+            onOpenAutoFocus={(e) => e.preventDefault()}
+            onPointerDownOutside={(e) => {
+              if ((e.target as HTMLElement).tagName === "SELECT") {
+                e.preventDefault();
+              }
+            }}
           >
             <DialogHeader className="shrink-0 space-y-1 border-b border-border px-4 pt-[max(2.5rem,env(safe-area-inset-top))] pb-3 sm:pt-4">
               <DialogTitle>
@@ -798,7 +804,7 @@ export function GestionCuotasView() {
             <ul className="divide-y divide-border rounded-lg border border-border">
               {resumenMesVistaTarjetas.map((r) => {
                 const rowKey = `${r.tarjetaId ?? "none"}-${r.moneda}`;
-                const detalleAbierto = tarjetaDetalleAbiertaKey === rowKey;
+                const detalleAbierto = tarjetaDetalleAbiertaKeys.has(rowKey);
                 const pagado = isPagoTarjetaMesMarcado(
                   cuotasTarjetaPagadasKeys,
                   mesCuotasVistaISO,
@@ -827,9 +833,12 @@ export function GestionCuotasView() {
                         aria-controls={`detalle-cuotas-${rowKey}`}
                         id={`toggle-detalle-${rowKey}`}
                         onClick={() =>
-                          setTarjetaDetalleAbiertaKey((k) =>
-                            k === rowKey ? null : rowKey
-                          )
+                          setTarjetaDetalleAbiertaKeys((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(rowKey)) next.delete(rowKey);
+                            else next.add(rowKey);
+                            return next;
+                          })
                         }
                       >
                         <span className="font-medium text-foreground">
@@ -886,7 +895,7 @@ export function GestionCuotasView() {
                           lineasDetalle.map((linea) => (
                             <li
                               key={linea.id}
-                              className="flex flex-col gap-0.5 rounded-md bg-muted/40 px-2.5 py-2 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-3"
+                              className="flex flex-col gap-0.5 rounded-md border border-sky-400/60 bg-muted/40 px-2.5 py-2 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-3 dark:border-sky-500/45"
                             >
                               <span className="min-w-0 font-medium text-foreground wrap-break-word">
                                 {linea.descripcion}

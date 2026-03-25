@@ -128,7 +128,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </span>
         </header>
 
-        <main className="flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
+        <main className="flex-1 pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:pb-0">
           <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6 md:py-8">
             {cloudSyncError ? (
               <div
@@ -181,10 +181,10 @@ function MobileBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm md:hidden"
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:hidden"
       aria-label="Accesos rápidos"
     >
-      <div className="mx-auto flex max-w-lg items-stretch justify-around gap-1 px-1 pt-1">
+      <div className="mx-auto flex max-w-lg items-stretch justify-around gap-0.5 px-1 pt-1.5">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active =
             href === "/"
@@ -196,14 +196,15 @@ function MobileBottomNav() {
               key={href}
               href={href}
               className={cn(
-                "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg py-2 text-[0.65rem] font-medium sm:text-xs",
+                "flex min-h-[52px] min-w-0 flex-1 touch-manipulation flex-col items-center justify-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[0.65rem] font-medium [-webkit-tap-highlight-color:transparent] select-none sm:text-xs",
                 active
                   ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+                "active:bg-muted/55 active:opacity-90"
               )}
             >
-              <Icon className="size-5 shrink-0" aria-hidden />
-              <span className="line-clamp-2 text-center leading-tight">
+              <Icon className="size-5 shrink-0 pointer-events-none" aria-hidden />
+              <span className="line-clamp-2 text-center leading-tight pointer-events-none">
                 {label === "Gestión de Cuotas" ? "Cuotas" : label}
               </span>
             </Link>
