@@ -8,6 +8,7 @@ import {
   CreditCard,
   LayoutDashboard,
   Menu,
+  PiggyBank,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/control-semanal", label: "Control Semanal", icon: CalendarRange },
   { href: "/gestion-cuotas", label: "Gestión de Cuotas", icon: CreditCard },
+  { href: "/ahorros", label: "Metas de Ahorro", icon: PiggyBank },
 ] as const;
 
 function NavLinks({
@@ -205,7 +207,11 @@ function MobileBottomNav() {
             >
               <Icon className="size-5 shrink-0 pointer-events-none" aria-hidden />
               <span className="line-clamp-2 text-center leading-tight pointer-events-none">
-                {label === "Gestión de Cuotas" ? "Cuotas" : label}
+                {label === "Gestión de Cuotas"
+                  ? "Cuotas"
+                  : label === "Metas de Ahorro"
+                    ? "Ahorro"
+                    : label}
               </span>
             </Link>
           );

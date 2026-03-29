@@ -23,6 +23,11 @@ import {
   upsertWeeklyRecords as dbUpsertWeekly,
 } from "@/lib/supabase-sync";
 import { recomputeWeeklyRecords } from "@/lib/weekly-records";
+import {
+  defaultAhorroMetasConfig,
+  normalizeAhorroMetasPayload,
+  type AhorroMetasConfig,
+} from "@/types/ahorro";
 import type {
   InstallmentPurchase,
   MonedaCuota,
@@ -88,6 +93,8 @@ type ExpenseStoreState = {
   ) => void;
   setTipoCambioPesosPorUsd: (valor: number) => void;
   setMesCuotasVistaISO: (mesISO: string) => void;
+  ahorroMetas: AhorroMetasConfig;
+  setAhorroMetas: (config: AhorroMetasConfig) => void;
 };
 
 let _initStarted = false;
@@ -101,6 +108,7 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
   mesCuotasVistaISO: mesCuotasVistaInicial(),
   isLoading: true,
   cloudSyncError: null,
+  ahorroMetas: defaultAhorroMetasConfig(),
 
   /* ---------------------------------------------------------------- */
   /*  Init: Supabase + migración / merge desde localStorage           */
@@ -154,6 +162,7 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
               .filter((x): x is TarjetaCredito => x != null),
             cuotasTarjetaPagadasKeys: fresh.cuotasTarjetaPagadasKeys,
             tipoCambioPesosPorUsd: fresh.tipoCambioPesosPorUsd,
+            ahorroMetas: fresh.ahorroMetas,
             cloudSyncError: null,
             isLoading: false,
           });
@@ -173,6 +182,7 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
           cuotasTarjetaPagadasKeys:
             localParsed.snapshot.cuotasTarjetaPagadasKeys,
           tipoCambioPesosPorUsd: localParsed.snapshot.tipoCambioPesosPorUsd,
+          ahorroMetas: localParsed.snapshot.ahorroMetas,
           cloudSyncError: `No se pudieron subir los datos a la nube. Seguís viendo lo guardado en este navegador. ${push.error}`,
           isLoading: false,
         });
@@ -189,6 +199,7 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
           .filter((x): x is TarjetaCredito => x != null),
         cuotasTarjetaPagadasKeys: data.cuotasTarjetaPagadasKeys,
         tipoCambioPesosPorUsd: data.tipoCambioPesosPorUsd,
+        ahorroMetas: data.ahorroMetas,
         cloudSyncError: null,
         isLoading: false,
       });
@@ -209,12 +220,17 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
           cuotasTarjetaPagadasKeys:
             fallback.snapshot.cuotasTarjetaPagadasKeys,
           tipoCambioPesosPorUsd: fallback.snapshot.tipoCambioPesosPorUsd,
+          ahorroMetas: fallback.snapshot.ahorroMetas,
           cloudSyncError:
             "No se pudo conectar con Supabase. Mostrando datos locales si existían.",
           isLoading: false,
         });
       } else {
-        set({ isLoading: false, cloudSyncError: null });
+        set({
+          isLoading: false,
+          cloudSyncError: null,
+          ahorroMetas: defaultAhorroMetasConfig(),
+        });
       }
     }
   },
@@ -227,6 +243,7 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
       tarjetas: s.tarjetas,
       cuotasTarjetaPagadasKeys: s.cuotasTarjetaPagadasKeys,
       tipoCambioPesosPorUsd: s.tipoCambioPesosPorUsd,
+      ahorroMetas: s.ahorroMetas,
     };
     const push = await pushPersistedSnapshotToSupabase(snapshot);
     if (push.ok) {
@@ -242,6 +259,7 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
           .filter((x): x is TarjetaCredito => x != null),
         cuotasTarjetaPagadasKeys: fresh.cuotasTarjetaPagadasKeys,
         tipoCambioPesosPorUsd: fresh.tipoCambioPesosPorUsd,
+        ahorroMetas: fresh.ahorroMetas,
         cloudSyncError: null,
       });
     } else {
@@ -487,6 +505,12 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
       set({ mesCuotasVistaISO: mesISO });
     }
   },
+
+  setAhorroMetas: (config) => {
+    const next = normalizeAhorroMetasPayload(config);
+    set({ ahorroMetas: next });
+    void upsertSetting("ahorroMetas", JSON.stringify(next));
+  },
 }));
 
 /* -------------------------------------------------------------------- */
@@ -558,6 +582,8 @@ function parseLocalStorageSnapshot(): {
       tipoCambioPesosPorUsd = local.tipoCambioPesosPorUsd;
     }
 
+    const ahorroMetas = normalizeAhorroMetasPayload(local.ahorroMetas);
+
     return {
       raw,
       snapshot: {
@@ -566,6 +592,7 @@ function parseLocalStorageSnapshot(): {
         tarjetas,
         cuotasTarjetaPagadasKeys,
         tipoCambioPesosPorUsd,
+        ahorroMetas,
       },
     };
   } catch (err) {

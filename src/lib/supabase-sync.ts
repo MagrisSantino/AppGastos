@@ -1,10 +1,27 @@
 import { getSupabase } from "./supabase";
+import {
+  defaultAhorroMetasConfig,
+  normalizeAhorroMetasPayload,
+  type AhorroMetasConfig,
+} from "@/types/ahorro";
 import type {
   InstallmentPurchase,
   MonedaCuota,
   TarjetaCredito,
   WeeklyExpenseRecord,
 } from "@/types/expenses";
+
+export function parseAhorroMetasFromSettingsRows(
+  rows: { key: string; value: string }[] | null | undefined
+): AhorroMetasConfig {
+  const row = rows?.find((r) => r.key === "ahorroMetas");
+  if (!row?.value) return defaultAhorroMetasConfig();
+  try {
+    return normalizeAhorroMetasPayload(JSON.parse(row.value));
+  } catch {
+    return defaultAhorroMetasConfig();
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Row types (snake_case — match the Supabase / PostgreSQL columns)  */
@@ -115,6 +132,7 @@ export type SupabaseSnapshot = {
   tarjetas: TarjetaCredito[];
   cuotasTarjetaPagadasKeys: string[];
   tipoCambioPesosPorUsd: number;
+  ahorroMetas: AhorroMetasConfig;
   hasData: boolean;
 };
 
@@ -149,14 +167,19 @@ export async function fetchAllData(): Promise<SupabaseSnapshot> {
     (r: { key: string }) => r.key,
   );
 
+  const settingsRows = (settingsRes.data ?? []) as {
+    key: string;
+    value: string;
+  }[];
+
   let tipoCambioPesosPorUsd = 1450;
-  const tcRow = (settingsRes.data ?? []).find(
-    (r: { key: string }) => r.key === "tipoCambioPesosPorUsd",
-  ) as { key: string; value: string } | undefined;
+  const tcRow = settingsRows.find((r) => r.key === "tipoCambioPesosPorUsd");
   if (tcRow) {
     const v = Number(tcRow.value);
     if (Number.isFinite(v) && v > 0) tipoCambioPesosPorUsd = v;
   }
+
+  const ahorroMetas = parseAhorroMetasFromSettingsRows(settingsRows);
 
   const hasData =
     weeklyRecords.length > 0 ||
@@ -169,6 +192,7 @@ export async function fetchAllData(): Promise<SupabaseSnapshot> {
     tarjetas,
     cuotasTarjetaPagadasKeys,
     tipoCambioPesosPorUsd,
+    ahorroMetas,
     hasData,
   };
 }
@@ -180,6 +204,7 @@ export type PersistedExpenseSnapshot = {
   tarjetas: TarjetaCredito[];
   cuotasTarjetaPagadasKeys: string[];
   tipoCambioPesosPorUsd: number;
+  ahorroMetas: AhorroMetasConfig;
 };
 
 /**
@@ -238,6 +263,17 @@ export async function pushPersistedSnapshotToSupabase(
         { onConflict: "key" },
       );
       if (error) errParts.push(`settings: ${error.message}`);
+    }
+
+    {
+      const { error } = await sb.from("settings").upsert(
+        {
+          key: "ahorroMetas",
+          value: JSON.stringify(snapshot.ahorroMetas),
+        },
+        { onConflict: "key" },
+      );
+      if (error) errParts.push(`settings(ahorroMetas): ${error.message}`);
     }
 
     if (errParts.length > 0) {

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   addMonths,
   format,
@@ -32,6 +33,7 @@ import {
   CreditCard,
   DollarSign,
   Minus,
+  PiggyBank,
   TrendingDown,
   Wallet,
 } from "lucide-react";
@@ -43,6 +45,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  computeAhorroProjection,
+  type AhorroProjectionResult,
+} from "@/lib/ahorro-projection";
 import { compraTodaPagada } from "@/lib/cuotas-tarjeta-pagos";
 import {
   estadoCompra,
@@ -89,6 +95,84 @@ const COLORES_PIE = [
   "#f97316",
   "#64748b",
 ];
+
+function ProyeccionArrastreCard({
+  proyeccion: p,
+}: {
+  proyeccion: AhorroProjectionResult;
+}) {
+  const esta = p.presupuestoEstaSemana;
+  const base = p.presupuestoBaseSemanal;
+  const estaSemanaColor =
+    esta < 0
+      ? "text-destructive"
+      : esta >= base
+        ? "text-emerald-700 dark:text-emerald-400"
+        : "text-amber-600 dark:text-amber-500";
+  const estaSemanaBorder =
+    esta < 0
+      ? "border-destructive/40 bg-destructive/5"
+      : esta >= base
+        ? "border-primary/40 bg-primary/5"
+        : "border-amber-500/40 bg-amber-500/5";
+
+  return (
+    <>
+      <div
+        className={cn(
+          "rounded-xl border-2 px-4 py-4 text-center shadow-sm",
+          estaSemanaBorder
+        )}
+      >
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Semana {p.semanaActualDelPlan} de {p.semanasTotales} del plan
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Podés gastar esta semana (base + arrastre)
+        </p>
+        <p
+          className={cn(
+            "mt-2 text-2xl font-bold tabular-nums tracking-tight sm:text-3xl",
+            estaSemanaColor
+          )}
+        >
+          {formatMoneyMinorUnits(Math.round(esta))}
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Base fija (siempre la misma mientras no cambies meta ni fechas): ingreso
+          neto por semana menos la parte de la meta repartida en las{" "}
+          <span className="font-medium text-foreground">
+            {p.semanasTotales} semana{p.semanasTotales === 1 ? "" : "s"} del plan
+          </span>
+          . Ahora{" "}
+          <span className="font-medium text-foreground">
+            {formatMoneyMinorUnits(Math.round(base))}
+          </span>{" "}
+          por semana + arrastre por lo ya gastado en semanas cerradas.
+        </p>
+      </div>
+      <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Estado del arrastre
+        </p>
+        <p className="mt-1 text-sm tabular-nums text-foreground">
+          Saldo acumulado de semanas anteriores:{" "}
+          <span
+            className={cn(
+              "font-semibold",
+              p.saldoArrastre >= 0
+                ? "text-emerald-700 dark:text-emerald-400"
+                : "text-destructive"
+            )}
+          >
+            {formatMoneyMinorUnits(Math.round(p.saldoArrastre))}
+          </span>
+          {p.saldoArrastre >= 0 ? " (a favor)" : " (en contra)"}
+        </p>
+      </div>
+    </>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  WEEKLY STATS                                                      */
@@ -337,10 +421,29 @@ export function DashboardView() {
   const tarjetas = useExpenseStore((s) => s.tarjetas);
   const keysPagados = useExpenseStore((s) => s.cuotasTarjetaPagadasKeys);
   const tipoCambio = useExpenseStore((s) => s.tipoCambioPesosPorUsd);
+  const ahorroMetas = useExpenseStore((s) => s.ahorroMetas);
 
   const ahora = React.useMemo(() => new Date(), []);
 
   const ws = React.useMemo(() => weeklyStats(weeklyRecords), [weeklyRecords]);
+
+  const proyeccionAhorro = React.useMemo(
+    () =>
+      computeAhorroProjection({
+        weeklyRecords,
+        sueldoActual: ahorroMetas.sueldoActual,
+        gastoFijoMensual: ahorroMetas.gastoFijoMensual,
+        metaAhorro: ahorroMetas.metaAhorro,
+        fechaInicio: ahorroMetas.fechaInicio,
+        fechaObjetivo: ahorroMetas.fechaObjetivo,
+      }),
+    [weeklyRecords, ahorroMetas]
+  );
+
+  const metaAhorroConfigurada =
+    ahorroMetas.metaAhorro > 0 &&
+    /^\d{4}-\d{2}-\d{2}$/.test(ahorroMetas.fechaObjetivo.trim()) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(ahorroMetas.fechaInicio.trim());
 
   const cs = React.useMemo(
     () => cuotasStats(compras, keysPagados, tipoCambio, ahora),
@@ -522,6 +625,50 @@ export function DashboardView() {
             />
           </div>
         )}
+      </section>
+
+      {/* ============================================================ */}
+      {/*  Proyección de ahorro                                        */}
+      {/* ============================================================ */}
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Proyección de ahorro
+        </h2>
+        <Card className="border-border shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base font-medium">
+              <PiggyBank className="size-5 opacity-80" aria-hidden />
+              Presupuesto con arrastre
+            </CardTitle>
+            <CardDescription>
+              Simulador según meta, sueldo, gastos fijos y los{" "}
+              <span className="font-medium text-foreground">gastos semanales</span>{" "}
+              cargados en control (no usa el patrimonio total). Configuración en{" "}
+              <Link
+                href="/ahorros"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Metas de ahorro
+              </Link>
+              .
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!metaAhorroConfigurada ? (
+              <p className="text-sm text-muted-foreground">
+                Cargá meta, fecha de inicio del plan y fecha objetivo en Metas de
+                ahorro.
+              </p>
+            ) : proyeccionAhorro == null ? (
+              <p className="text-sm text-muted-foreground">
+                Revisá que la fecha objetivo sea igual o posterior al inicio del
+                plan.
+              </p>
+            ) : (
+              <ProyeccionArrastreCard proyeccion={proyeccionAhorro} />
+            )}
+          </CardContent>
+        </Card>
       </section>
 
       {/* ============================================================ */}
