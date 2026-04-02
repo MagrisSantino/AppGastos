@@ -139,16 +139,20 @@ function ProyeccionArrastreCard({
           {formatMoneyMinorUnits(Math.round(esta))}
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
-          Base fija (siempre la misma mientras no cambies meta ni fechas): ingreso
-          neto por semana menos la parte de la meta repartida en las{" "}
+          Calculado sobre{" "}
           <span className="font-medium text-foreground">
-            {p.semanasTotales} semana{p.semanasTotales === 1 ? "" : "s"} del plan
+            {p.sueldosCantidad} sueldos
+          </span>{" "}
+          ({formatMoneyMinorUnits(Math.round(p.totalIngresos))} total) menos la
+          meta, dividido en{" "}
+          <span className="font-medium text-foreground">
+            {p.semanasTotales} semanas
           </span>
-          . Ahora{" "}
+          . Base fija:{" "}
           <span className="font-medium text-foreground">
             {formatMoneyMinorUnits(Math.round(base))}
-          </span>{" "}
-          por semana + arrastre por lo ya gastado en semanas cerradas.
+          </span>
+          /sem · el número grande suma el arrastre de semanas pasadas.
         </p>
       </div>
       <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
@@ -432,7 +436,6 @@ export function DashboardView() {
       computeAhorroProjection({
         weeklyRecords,
         sueldoActual: ahorroMetas.sueldoActual,
-        gastoFijoMensual: ahorroMetas.gastoFijoMensual,
         metaAhorro: ahorroMetas.metaAhorro,
         fechaInicio: ahorroMetas.fechaInicio,
         fechaObjetivo: ahorroMetas.fechaObjetivo,
@@ -452,12 +455,18 @@ export function DashboardView() {
 
   /* ----- weekly chart data ----- */
   const gastoChartData = React.useMemo(() => {
-    return ws.conGasto.slice(-12).map((r) => ({
-      fecha: r.fechaISO,
-      etiqueta: format(parseISO(r.fechaISO), "d MMM", { locale: es }),
-      gasto: r.gastoSemanalMinorUnits / 100,
-    }));
-  }, [ws.conGasto]);
+    const result: { fecha: string; etiqueta: string; gasto: number }[] = [];
+    for (let i = 1; i < ws.sorted.length; i++) {
+      const g = ws.sorted[i].gastoSemanalMinorUnits;
+      if (g == null) continue;
+      result.push({
+        fecha: ws.sorted[i - 1].fechaISO,
+        etiqueta: format(parseISO(ws.sorted[i - 1].fechaISO), "d MMM", { locale: es }),
+        gasto: g / 100,
+      });
+    }
+    return result.slice(-12);
+  }, [ws.sorted]);
 
   const patrimonioChartData = React.useMemo(() => {
     return ws.sorted.slice(-12).map((r) => ({
@@ -471,32 +480,42 @@ export function DashboardView() {
 
   /* ----- tendencia gasto: media móvil 4 semanas ----- */
   const mediaMovilData = React.useMemo(() => {
-    const datos = ws.conGasto;
-    if (datos.length < 4) return [];
+    const pairs: { startISO: string; gasto: number }[] = [];
+    for (let i = 1; i < ws.sorted.length; i++) {
+      const g = ws.sorted[i].gastoSemanalMinorUnits;
+      if (g == null) continue;
+      pairs.push({ startISO: ws.sorted[i - 1].fechaISO, gasto: g / 100 });
+    }
+    if (pairs.length < 4) return [];
     const out: { etiqueta: string; media: number; gasto: number }[] = [];
-    for (let i = 3; i < datos.length; i++) {
-      const window4 = datos.slice(i - 3, i + 1);
-      const media =
-        window4.reduce((s, r) => s + r.gastoSemanalMinorUnits, 0) / 4 / 100;
+    for (let i = 3; i < pairs.length; i++) {
+      const window4 = pairs.slice(i - 3, i + 1);
+      const media = window4.reduce((s, p) => s + p.gasto, 0) / 4;
       out.push({
-        etiqueta: format(parseISO(datos[i].fechaISO), "d MMM", { locale: es }),
+        etiqueta: format(parseISO(pairs[i].startISO), "d MMM", { locale: es }),
         media,
-        gasto: datos[i].gastoSemanalMinorUnits / 100,
+        gasto: pairs[i].gasto,
       });
     }
     return out.slice(-12);
-  }, [ws.conGasto]);
+  }, [ws.sorted]);
 
   /* ----- gastos semanales vs promedio bar chart ----- */
   const gastosVsPromedioData = React.useMemo(() => {
     if (ws.promedioHistorico == null) return [];
     const avg = ws.promedioHistorico / 100;
-    return ws.conGasto.slice(-8).map((r) => ({
-      etiqueta: format(parseISO(r.fechaISO), "d MMM", { locale: es }),
-      gasto: r.gastoSemanalMinorUnits / 100,
-      promedio: avg,
-    }));
-  }, [ws.conGasto, ws.promedioHistorico]);
+    const result: { etiqueta: string; gasto: number; promedio: number }[] = [];
+    for (let i = 1; i < ws.sorted.length; i++) {
+      const g = ws.sorted[i].gastoSemanalMinorUnits;
+      if (g == null) continue;
+      result.push({
+        etiqueta: format(parseISO(ws.sorted[i - 1].fechaISO), "d MMM", { locale: es }),
+        gasto: g / 100,
+        promedio: avg,
+      });
+    }
+    return result.slice(-8);
+  }, [ws.sorted, ws.promedioHistorico]);
 
   /* ----- top 5 compras activas ----- */
   const top5Compras = React.useMemo(() => {
@@ -520,6 +539,23 @@ export function DashboardView() {
     ws.totalDisponible != null && ws.totalAnterior != null
       ? pct(ws.totalDisponible, ws.totalAnterior)
       : null;
+
+  // Promedio de gasto mensual: suma gastos semanales por mes calendario y promedia
+  const { promedioMensual, mesesConDatos } = React.useMemo(() => {
+    const monthTotals = new Map<string, number>();
+    for (let i = 1; i < ws.sorted.length; i++) {
+      const g = ws.sorted[i].gastoSemanalMinorUnits;
+      if (g == null) continue;
+      const mes = ws.sorted[i - 1].fechaISO.slice(0, 7);
+      monthTotals.set(mes, (monthTotals.get(mes) ?? 0) + g);
+    }
+    const totals = [...monthTotals.values()];
+    if (totals.length === 0) return { promedioMensual: null, mesesConDatos: 0 };
+    return {
+      promedioMensual: Math.round(totals.reduce((s, v) => s + v, 0) / totals.length),
+      mesesConDatos: totals.length,
+    };
+  }, [ws.sorted]);
 
   if (isLoading) return <LoadingData />;
 
@@ -547,6 +583,7 @@ export function DashboardView() {
             <span className="font-medium text-foreground">Control Semanal</span>.
           </p>
         ) : (
+          <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <KpiCard
               titulo="Disponible ahora"
@@ -624,6 +661,31 @@ export function DashboardView() {
               icono={DollarSign}
             />
           </div>
+          {promedioMensual != null && (
+            <Card className="mt-3 border-primary/30 bg-primary/5 shadow-sm">
+              <CardContent className="flex flex-col gap-0.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Promedio de gasto mensual
+                  </p>
+                  <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-foreground sm:text-4xl">
+                    {formatMoneyMinorUnits(promedioMensual)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Calculado sobre {mesesConDatos}{" "}
+                    {mesesConDatos === 1 ? "mes" : "meses"} con datos · semanas
+                    asignadas al mes en que empezaron
+                  </p>
+                </div>
+                <div className="mt-3 shrink-0 sm:mt-0">
+                  <div className="rounded-xl bg-primary/10 p-3">
+                    <BarChart3 className="size-8 text-primary" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          </>
         )}
       </section>
 

@@ -4,7 +4,6 @@
  */
 export type AhorroMetasConfig = {
   sueldoActual: number;
-  gastoFijoMensual: number;
   metaAhorro: number;
   /** Lunes (o fecha) que ancla el inicio del plan de presupuesto con arrastre. */
   fechaInicio: string;
@@ -14,7 +13,6 @@ export type AhorroMetasConfig = {
 export function defaultAhorroMetasConfig(): AhorroMetasConfig {
   return {
     sueldoActual: 0,
-    gastoFijoMensual: 0,
     metaAhorro: 0,
     fechaInicio: "",
     fechaObjetivo: "",
@@ -31,7 +29,6 @@ export function normalizeAhorroMetasPayload(raw: unknown): AhorroMetasConfig {
     typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
   return {
     sueldoActual: n(o.sueldoActual),
-    gastoFijoMensual: n(o.gastoFijoMensual),
     metaAhorro: n(o.metaAhorro),
     fechaInicio: fechaOk(o.fechaInicio),
     fechaObjetivo: fechaOk(o.fechaObjetivo),

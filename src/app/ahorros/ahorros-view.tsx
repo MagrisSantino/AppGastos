@@ -28,7 +28,6 @@ export function AhorrosView() {
   const setAhorroMetas = useExpenseStore((s) => s.setAhorroMetas);
 
   const [sueldoStr, setSueldoStr] = React.useState("");
-  const [gastoStr, setGastoStr] = React.useState("");
   const [metaStr, setMetaStr] = React.useState("");
   const [fechaInicio, setFechaInicio] = React.useState("");
   const [fecha, setFecha] = React.useState("");
@@ -39,11 +38,6 @@ export function AhorrosView() {
     setSueldoStr(
       ahorroMetas.sueldoActual > 0
         ? minorUnitsToInputString(ahorroMetas.sueldoActual)
-        : ""
-    );
-    setGastoStr(
-      ahorroMetas.gastoFijoMensual > 0
-        ? minorUnitsToInputString(ahorroMetas.gastoFijoMensual)
         : ""
     );
     setMetaStr(
@@ -69,20 +63,18 @@ export function AhorrosView() {
     setFormError(null);
 
     const sueldo = parseMoneyInputToMinorUnits(sueldoStr);
-    const gasto = parseMoneyInputToMinorUnits(gastoStr);
     const meta = parseMoneyInputToMinorUnits(metaStr);
 
-    if (sueldo === null || gasto === null || meta === null) {
+    if (sueldo === null || meta === null) {
       setFormError(
-        "Revisá sueldo, gasto fijo y meta: usá números válidos (ej. 1500000 o 1.234,56)."
+        "Revisá sueldo y meta: usá números válidos (ej. 1500000 o 1.234,56)."
       );
       return;
     }
-    if (sueldo < 0 || gasto < 0 || meta < 0) {
+    if (sueldo < 0 || meta < 0) {
       setFormError("Los montos no pueden ser negativos.");
       return;
     }
-
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaInicio.trim())) {
       setFormError("Elegí una fecha de inicio del plan válida.");
       return;
@@ -94,7 +86,6 @@ export function AhorrosView() {
 
     const payload: AhorroMetasConfig = {
       sueldoActual: sueldo,
-      gastoFijoMensual: gasto,
       metaAhorro: meta,
       fechaInicio: fechaInicio.trim(),
       fechaObjetivo: fecha.trim(),
@@ -113,9 +104,9 @@ export function AhorrosView() {
           Metas de ahorro
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Definí sueldo, gastos fijos y meta. El presupuesto con arrastre del
-          dashboard usa la fecha de inicio del plan, la meta y los gastos
-          semanales cargados en control semanal.
+          El sistema cuenta cuántos sueldos cobrás entre las dos fechas,
+          resta la meta y divide el sobrante en las semanas del plan para
+          calcular tu presupuesto semanal con arrastre.
         </p>
       </div>
 
@@ -147,20 +138,6 @@ export function AhorrosView() {
               />
             </div>
             <div>
-              <label htmlFor="ahorro-gasto-fijo" className={labelClass}>
-                Gasto fijo mensual
-              </label>
-              <Input
-                id="ahorro-gasto-fijo"
-                inputMode="decimal"
-                autoComplete="off"
-                placeholder="0"
-                value={gastoStr}
-                onChange={(ev) => setGastoStr(ev.target.value)}
-                className={fieldClass}
-              />
-            </div>
-            <div>
               <label htmlFor="ahorro-meta" className={labelClass}>
                 Meta de ahorro (total a reunir)
               </label>
@@ -188,9 +165,7 @@ export function AhorrosView() {
               />
               {fechaInicio ? (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Por defecto: lunes de esta semana. Los cortes desde esta fecha
-                  cuentan para el arrastre del presupuesto.
-                  {" "}
+                  Los cortes desde esta fecha cuentan para el arrastre.{" "}
                   {format(parseISO(fechaInicio), "EEEE d MMMM yyyy", {
                     locale: es,
                   })}

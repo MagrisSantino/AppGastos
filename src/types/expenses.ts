@@ -19,6 +19,18 @@ export interface WeeklyExpenseRecord {
    * (total semana anterior + ingreso extra de ESTE registro) - total actual.
    */
   gastoSemanalMinorUnits: number | null;
+  /** Nota libre opcional para contextualizar la semana. */
+  nota: string | null;
+  creadoEn: string;
+}
+
+/** Ingreso registrado en cualquier momento de la semana (sueldo, extras, etc.). */
+export interface IngresoSemanal {
+  id: string;
+  /** Fecha en que se registró el ingreso (yyyy-MM-dd). */
+  fechaISO: string;
+  montoMinorUnits: number;
+  nota: string | null;
   creadoEn: string;
 }
 

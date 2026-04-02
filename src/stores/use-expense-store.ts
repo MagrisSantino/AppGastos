@@ -9,12 +9,14 @@ import {
 } from "@/lib/installments";
 import {
   deleteWeeklyRecord as dbDeleteWeekly,
+  deleteIngresoRecord as dbDeleteIngreso,
   deletePagadaKey,
   deleteTarjeta as dbDeleteTarjeta,
   fetchAllData,
   insertPagadaKey,
   type PersistedExpenseSnapshot,
   pushPersistedSnapshotToSupabase,
+  upsertIngreso as dbUpsertIngreso,
   upsertInstallmentPurchase as dbUpsertInstallment,
   upsertInstallmentPurchases as dbUpsertInstallments,
   upsertSetting,
@@ -29,6 +31,7 @@ import {
   type AhorroMetasConfig,
 } from "@/types/ahorro";
 import type {
+  IngresoSemanal,
   InstallmentPurchase,
   MonedaCuota,
   TarjetaCredito,
@@ -47,7 +50,7 @@ type SaveWeeklySnapshotInput = {
   fechaISO: string;
   efectivoMinorUnits: number;
   transferenciaMinorUnits: number;
-  ingresoExtraMinorUnits: number | null;
+  nota: string | null;
 };
 
 type AddInstallmentInput = {
@@ -61,6 +64,7 @@ type AddInstallmentInput = {
 
 type ExpenseStoreState = {
   weeklyRecords: WeeklyExpenseRecord[];
+  ingresosSemanales: IngresoSemanal[];
   installmentPurchases: InstallmentPurchase[];
   tarjetas: TarjetaCredito[];
   cuotasTarjetaPagadasKeys: string[];
@@ -78,6 +82,8 @@ type ExpenseStoreState = {
   setTarjetas: (items: TarjetaCredito[]) => void;
   saveWeeklySnapshot: (input: SaveWeeklySnapshotInput) => void;
   deleteWeeklyRecordById: (id: string) => void;
+  addIngreso: (monto: number, nota: string | null, fechaISO: string) => void;
+  deleteIngresoById: (id: string) => void;
   addInstallmentPurchase: (input: AddInstallmentInput) => void;
   updateInstallmentPurchase: (id: string, input: AddInstallmentInput) => void;
   addTarjeta: (nombre: string) => void;
@@ -101,6 +107,7 @@ let _initStarted = false;
 
 export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
   weeklyRecords: [],
+  ingresosSemanales: [],
   installmentPurchases: [],
   tarjetas: [],
   cuotasTarjetaPagadasKeys: [],
@@ -153,7 +160,8 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
           localStorage.removeItem(OLD_STORAGE_KEY);
           const fresh = await fetchAllData();
           set({
-            weeklyRecords: recomputeWeeklyRecords(fresh.weeklyRecords),
+            weeklyRecords: recomputeWeeklyRecords(fresh.weeklyRecords, fresh.ingresosSemanales),
+            ingresosSemanales: fresh.ingresosSemanales,
             installmentPurchases: fresh.installmentPurchases
               .map(normalizeInstallmentPurchase)
               .filter((x): x is InstallmentPurchase => x != null),
@@ -171,8 +179,9 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
         console.error("No se pudo guardar en Supabase:", push.error);
         set({
           weeklyRecords: recomputeWeeklyRecords(
-            localParsed.snapshot.weeklyRecords
+            localParsed.snapshot.weeklyRecords, []
           ),
+          ingresosSemanales: [],
           installmentPurchases: localParsed.snapshot.installmentPurchases
             .map(normalizeInstallmentPurchase)
             .filter((x): x is InstallmentPurchase => x != null),
@@ -190,7 +199,8 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
       }
 
       set({
-        weeklyRecords: recomputeWeeklyRecords(data.weeklyRecords),
+        weeklyRecords: recomputeWeeklyRecords(data.weeklyRecords, data.ingresosSemanales),
+        ingresosSemanales: data.ingresosSemanales,
         installmentPurchases: data.installmentPurchases
           .map(normalizeInstallmentPurchase)
           .filter((x): x is InstallmentPurchase => x != null),
@@ -209,8 +219,9 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
       if (fallback && snapshotHasUserData(fallback.snapshot)) {
         set({
           weeklyRecords: recomputeWeeklyRecords(
-            fallback.snapshot.weeklyRecords
+            fallback.snapshot.weeklyRecords, []
           ),
+          ingresosSemanales: [],
           installmentPurchases: fallback.snapshot.installmentPurchases
             .map(normalizeInstallmentPurchase)
             .filter((x): x is InstallmentPurchase => x != null),
@@ -239,6 +250,7 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
     const s = get();
     const snapshot: PersistedExpenseSnapshot = {
       weeklyRecords: s.weeklyRecords,
+      ingresosSemanales: s.ingresosSemanales,
       installmentPurchases: s.installmentPurchases,
       tarjetas: s.tarjetas,
       cuotasTarjetaPagadasKeys: s.cuotasTarjetaPagadasKeys,
@@ -250,7 +262,8 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
       localStorage.removeItem(OLD_STORAGE_KEY);
       const fresh = await fetchAllData();
       set({
-        weeklyRecords: recomputeWeeklyRecords(fresh.weeklyRecords),
+        weeklyRecords: recomputeWeeklyRecords(fresh.weeklyRecords, fresh.ingresosSemanales),
+        ingresosSemanales: fresh.ingresosSemanales,
         installmentPurchases: fresh.installmentPurchases
           .map(normalizeInstallmentPurchase)
           .filter((x): x is InstallmentPurchase => x != null),
@@ -275,7 +288,7 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
   /*  Setters masivos (rara vez usados fuera de init)                 */
   /* ---------------------------------------------------------------- */
   setWeeklyRecords: (records) => {
-    const recomputed = recomputeWeeklyRecords(records);
+    const recomputed = recomputeWeeklyRecords(records, get().ingresosSemanales);
     set({ weeklyRecords: recomputed });
     void dbUpsertWeekly(recomputed);
   },
@@ -303,7 +316,7 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
     fechaISO,
     efectivoMinorUnits,
     transferenciaMinorUnits,
-    ingresoExtraMinorUnits,
+    nota,
   }) => {
     set((state) => {
       const existing = state.weeklyRecords.find(
@@ -320,13 +333,15 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
         fechaISO,
         efectivoMinorUnits,
         transferenciaMinorUnits,
-        ingresoExtraMinorUnits,
+        // Limpia el campo legado al re-guardar; los ingresos ahora van en ingresosSemanales
+        ingresoExtraMinorUnits: null,
         totalMinorUnits: 0,
         gastoSemanalMinorUnits: null,
+        nota: nota?.trim() || null,
         creadoEn,
       };
 
-      const weeklyRecords = recomputeWeeklyRecords([...rest, draft]);
+      const weeklyRecords = recomputeWeeklyRecords([...rest, draft], state.ingresosSemanales);
       return { weeklyRecords };
     });
     void dbUpsertWeekly(get().weeklyRecords);
@@ -335,11 +350,41 @@ export const useExpenseStore = create<ExpenseStoreState>()((set, get) => ({
   deleteWeeklyRecordById: (id) => {
     set((state) => ({
       weeklyRecords: recomputeWeeklyRecords(
-        state.weeklyRecords.filter((r) => r.id !== id)
+        state.weeklyRecords.filter((r) => r.id !== id),
+        state.ingresosSemanales
       ),
     }));
     void dbDeleteWeekly(id);
     void dbUpsertWeekly(get().weeklyRecords);
+  },
+
+  addIngreso: (monto, nota, fechaISO) => {
+    const ing: IngresoSemanal = {
+      id: crypto.randomUUID(),
+      fechaISO,
+      montoMinorUnits: monto,
+      nota: nota?.trim() || null,
+      creadoEn: new Date().toISOString(),
+    };
+    set((state) => {
+      const ingresosSemanales = [...state.ingresosSemanales, ing];
+      return {
+        ingresosSemanales,
+        weeklyRecords: recomputeWeeklyRecords(state.weeklyRecords, ingresosSemanales),
+      };
+    });
+    void dbUpsertIngreso(ing);
+  },
+
+  deleteIngresoById: (id) => {
+    set((state) => {
+      const ingresosSemanales = state.ingresosSemanales.filter((i) => i.id !== id);
+      return {
+        ingresosSemanales,
+        weeklyRecords: recomputeWeeklyRecords(state.weeklyRecords, ingresosSemanales),
+      };
+    });
+    void dbDeleteIngreso(id);
   },
 
   /* ---------------------------------------------------------------- */
@@ -542,7 +587,7 @@ function parseLocalStorageSnapshot(): {
     const weeklyRecords: WeeklyExpenseRecord[] = Array.isArray(
       local.weeklyRecords
     )
-      ? recomputeWeeklyRecords(local.weeklyRecords)
+      ? recomputeWeeklyRecords(local.weeklyRecords, [])
       : [];
 
     const tarjetas: TarjetaCredito[] = Array.isArray(local.tarjetas)
@@ -588,6 +633,7 @@ function parseLocalStorageSnapshot(): {
       raw,
       snapshot: {
         weeklyRecords,
+        ingresosSemanales: [],
         installmentPurchases,
         tarjetas,
         cuotasTarjetaPagadasKeys,

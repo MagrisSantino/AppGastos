@@ -1,5 +1,6 @@
 import {
   differenceInCalendarWeeks,
+  differenceInMonths,
   isValid,
   max,
   parse,
@@ -8,15 +9,17 @@ import {
 
 import type { WeeklyExpenseRecord } from "@/types/expenses";
 
-const SEMANAS_POR_MES_APROX = 4.333;
-
 export type AhorroProjectionResult = {
   semanasTotales: number;
-  /** Semana del plan en curso, primera = 1 (según semanas completas desde el inicio). */
+  /** Semana del plan en curso, primera = 1. */
   semanaActualDelPlan: number;
-  ahorroSemanalRequerido: number;
-  ingresoSemanalLimpio: number;
+  /** Sueldos completos contados dentro del plan (floor de meses). */
+  sueldosCantidad: number;
+  /** sueldosCantidad × sueldoActual */
+  totalIngresos: number;
+  /** (totalIngresos − metaAhorro) / semanasTotales */
   presupuestoBaseSemanal: number;
+  ahorroSemanalRequerido: number;
   semanasPasadas: number;
   gastosAcumulados: number;
   saldoArrastre: number;
@@ -24,25 +27,26 @@ export type AhorroProjectionResult = {
 };
 
 /**
- * Presupuesto con arrastre (simulación):
- * - Base fija semanal = (sueldo − gasto fijo) / 4,333 − meta / semanas del plan.
- * - Lo podés gastar esta semana = base + arrastre, con arrastre = base×semanas
- *   ya cerradas − gasto registrado en esas semanas (no usa patrimonio total).
+ * Presupuesto con arrastre:
+ *
+ * 1. Contá cuántos sueldos completos cobrás entre fechaInicio y fechaObjetivo
+ *    (floor de meses, porque el sueldo llega el primer día hábil del mes).
+ * 2. Total disponible = sueldos × sueldo − meta.
+ * 3. Presupuesto semanal = total disponible / semanas del plan.
+ * 4. Arrastre = presupuesto acumulado de semanas cerradas − gasto real registrado.
  */
 export function computeAhorroProjection(input: {
   weeklyRecords: WeeklyExpenseRecord[];
   sueldoActual: number;
-  gastoFijoMensual: number;
   metaAhorro: number;
   fechaInicio: string;
   fechaObjetivo: string;
-  /** Solo tests; la referencia de “hoy” para el arrastre usa siempre la fecha real del dispositivo. */
+  /** Solo tests: referencia de "hoy" para el arrastre. */
   ahora?: Date;
 }): AhorroProjectionResult | null {
   const {
     weeklyRecords,
     sueldoActual,
-    gastoFijoMensual,
     metaAhorro,
     fechaInicio: fechaInicioRaw,
     fechaObjetivo: fechaObjetivoRaw,
@@ -69,60 +73,47 @@ export function computeAhorroProjection(input: {
   const lunesInicio = startOfWeek(inicioDate, { weekStartsOn: 1 });
   const lunesObjetivo = startOfWeek(objetivoDate, { weekStartsOn: 1 });
 
+  if (lunesObjetivo < lunesInicio) return null;
+
+  /** Semanas del plan: del lunes de inicio al lunes de la meta, ambas inclusivas. */
+  const semanasTotales = Math.max(
+    1,
+    differenceInCalendarWeeks(lunesObjetivo, lunesInicio, { weekStartsOn: 1 }) + 1
+  );
+
   /**
-   * Avanzar la semana del simulador cuando cargás un corte posterior a “hoy
-   * calendario” en el mismo dispositivo; nunca usar una fecha congelada del UI.
+   * Sueldos completos: floor de meses entre fechaInicio y fechaObjetivo.
+   * Ej: 13,3 meses → 13 sueldos (el sueldo llega el primer día hábil del mes,
+   * así que el del último mes incompleto no se cuenta).
    */
+  const sueldosCantidad = Math.max(0, differenceInMonths(objetivoDate, inicioDate));
+  const totalIngresos = sueldosCantidad * sueldoActual;
+  const disponible = totalIngresos - metaAhorro;
+  const presupuestoBaseSemanal = disponible / semanasTotales;
+  const ahorroSemanalRequerido = metaAhorro / semanasTotales;
+
+  /** Referencia de "hoy": avanza si el último registro es futuro (modo simulación). */
   const porRegistro = [...weeklyRecords]
     .filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.fechaISO))
     .sort((a, b) => b.fechaISO.localeCompare(a.fechaISO))[0];
   let refDate = reloj;
   if (porRegistro != null) {
     const dUlt = parse(porRegistro.fechaISO, "yyyy-MM-dd", refParse);
-    if (isValid(dUlt)) {
-      refDate = max([reloj, dUlt]);
-    }
+    if (isValid(dUlt)) refDate = max([reloj, dUlt]);
   }
   const lunesActual = startOfWeek(refDate, { weekStartsOn: 1 });
-
-  if (lunesObjetivo < lunesInicio) {
-    return null;
-  }
-
-  /** Semanas del plan: del lunes de inicio al lunes de la meta, ambas inclusivas. */
-  const deltaSemanasInicioMeta = differenceInCalendarWeeks(
-    lunesObjetivo,
-    lunesInicio,
-    { weekStartsOn: 1 }
-  );
-  const semanasTotales = Math.max(1, deltaSemanasInicioMeta + 1);
-
-  const ahorroSemanalRequerido = metaAhorro / semanasTotales;
-  const superavitMensual = sueldoActual - gastoFijoMensual;
-  const ingresoSemanalLimpio = superavitMensual / SEMANAS_POR_MES_APROX;
-  const presupuestoBaseSemanal = ingresoSemanalLimpio - ahorroSemanalRequerido;
 
   const diffSemanasPasadas = differenceInCalendarWeeks(
     lunesActual,
     lunesInicio,
     { weekStartsOn: 1 }
   );
-  const semanasPasadas =
-    diffSemanasPasadas > 0 ? diffSemanasPasadas : 0;
-
-  const semanaActualDelPlan = Math.max(
-    1,
-    Math.min(semanasPasadas + 1, semanasTotales)
-  );
+  const semanasPasadas = diffSemanasPasadas > 0 ? diffSemanasPasadas : 0;
+  const semanaActualDelPlan = Math.max(1, Math.min(semanasPasadas + 1, semanasTotales));
 
   const inicioISO = formatLocalYMD(lunesInicio);
   const actualISO = formatLocalYMD(lunesActual);
 
-  /**
-   * Cada registro es un lunes de corte: `gastoSemanalMinorUnits` es el gasto de
-   * la semana que acaba de terminar. Sumamos cortes con lunes > inicio del plan
-   * y ≤ lunes de esta semana (así incluimos el corte del lunes actual).
-   */
   let gastosAcumulados = 0;
   for (const r of weeklyRecords) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(r.fechaISO)) continue;
@@ -132,16 +123,16 @@ export function computeAhorroProjection(input: {
     gastosAcumulados += typeof g === "number" && Number.isFinite(g) ? g : 0;
   }
 
-  const saldoArrastre =
-    presupuestoBaseSemanal * semanasPasadas - gastosAcumulados;
+  const saldoArrastre = presupuestoBaseSemanal * semanasPasadas - gastosAcumulados;
   const presupuestoEstaSemana = presupuestoBaseSemanal + saldoArrastre;
 
   return {
     semanasTotales,
     semanaActualDelPlan,
-    ahorroSemanalRequerido,
-    ingresoSemanalLimpio,
+    sueldosCantidad,
+    totalIngresos,
     presupuestoBaseSemanal,
+    ahorroSemanalRequerido,
     semanasPasadas,
     gastosAcumulados,
     saldoArrastre,

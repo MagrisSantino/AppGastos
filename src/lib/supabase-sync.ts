@@ -5,6 +5,7 @@ import {
   type AhorroMetasConfig,
 } from "@/types/ahorro";
 import type {
+  IngresoSemanal,
   InstallmentPurchase,
   MonedaCuota,
   TarjetaCredito,
@@ -35,6 +36,7 @@ type WeeklyRecordRow = {
   ingreso_extra_minor_units: number | null;
   total_minor_units: number;
   gasto_semanal_minor_units: number | null;
+  nota: string | null;
   creado_en: string;
 };
 
@@ -56,6 +58,14 @@ type TarjetaRow = {
   creado_en: string;
 };
 
+type IngresoSemanalRow = {
+  id: string;
+  fecha_iso: string;
+  monto_minor_units: number;
+  nota: string | null;
+  creado_en: string;
+};
+
 /* ------------------------------------------------------------------ */
 /*  Mappers  DB row <-> App type                                      */
 /* ------------------------------------------------------------------ */
@@ -69,6 +79,7 @@ function toWeeklyRecord(row: WeeklyRecordRow): WeeklyExpenseRecord {
     ingresoExtraMinorUnits: row.ingreso_extra_minor_units,
     totalMinorUnits: row.total_minor_units,
     gastoSemanalMinorUnits: row.gasto_semanal_minor_units,
+    nota: row.nota ?? null,
     creadoEn: row.creado_en,
   };
 }
@@ -82,6 +93,7 @@ function fromWeeklyRecord(r: WeeklyExpenseRecord): WeeklyRecordRow {
     ingreso_extra_minor_units: r.ingresoExtraMinorUnits,
     total_minor_units: r.totalMinorUnits,
     gasto_semanal_minor_units: r.gastoSemanalMinorUnits,
+    nota: r.nota ?? null,
     creado_en: r.creadoEn,
   };
 }
@@ -122,12 +134,33 @@ function fromTarjeta(t: TarjetaCredito): TarjetaRow {
   return { id: t.id, nombre: t.nombre, creado_en: t.creadoEn };
 }
 
+function toIngreso(row: IngresoSemanalRow): IngresoSemanal {
+  return {
+    id: row.id,
+    fechaISO: row.fecha_iso,
+    montoMinorUnits: row.monto_minor_units,
+    nota: row.nota ?? null,
+    creadoEn: row.creado_en,
+  };
+}
+
+function fromIngreso(r: IngresoSemanal): IngresoSemanalRow {
+  return {
+    id: r.id,
+    fecha_iso: r.fechaISO,
+    monto_minor_units: r.montoMinorUnits,
+    nota: r.nota ?? null,
+    creado_en: r.creadoEn,
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /*  Fetch all data                                                    */
 /* ------------------------------------------------------------------ */
 
 export type SupabaseSnapshot = {
   weeklyRecords: WeeklyExpenseRecord[];
+  ingresosSemanales: IngresoSemanal[];
   installmentPurchases: InstallmentPurchase[];
   tarjetas: TarjetaCredito[];
   cuotasTarjetaPagadasKeys: string[];
@@ -139,13 +172,14 @@ export type SupabaseSnapshot = {
 export async function fetchAllData(): Promise<SupabaseSnapshot> {
   const sb = getSupabase();
 
-  const [weeklyRes, installRes, tarjetasRes, keysRes, settingsRes] =
+  const [weeklyRes, installRes, tarjetasRes, keysRes, settingsRes, ingresosRes] =
     await Promise.all([
       sb.from("weekly_records").select("*").order("fecha_iso"),
       sb.from("installment_purchases").select("*").order("creado_en"),
       sb.from("tarjetas").select("*").order("creado_en"),
       sb.from("cuotas_pagadas_keys").select("key"),
       sb.from("settings").select("*"),
+      sb.from("ingresos_semanales").select("*").order("fecha_iso"),
     ]);
 
   if (weeklyRes.error) console.error("weekly_records:", weeklyRes.error);
@@ -153,9 +187,16 @@ export async function fetchAllData(): Promise<SupabaseSnapshot> {
   if (tarjetasRes.error) console.error("tarjetas:", tarjetasRes.error);
   if (keysRes.error) console.error("cuotas_pagadas_keys:", keysRes.error);
   if (settingsRes.error) console.error("settings:", settingsRes.error);
+  // La tabla puede no existir aún en instalaciones viejas — se trata como vacía.
+  if (ingresosRes.error && ingresosRes.error.code !== "42P01") {
+    console.error("ingresos_semanales:", ingresosRes.error);
+  }
 
   const weeklyRecords = (weeklyRes.data ?? []).map(
     (r) => toWeeklyRecord(r as WeeklyRecordRow),
+  );
+  const ingresosSemanales = (ingresosRes.data ?? []).map(
+    (r) => toIngreso(r as IngresoSemanalRow),
   );
   const installmentPurchases = (installRes.data ?? []).map(
     (r) => toInstallment(r as InstallmentRow),
@@ -188,6 +229,7 @@ export async function fetchAllData(): Promise<SupabaseSnapshot> {
 
   return {
     weeklyRecords,
+    ingresosSemanales,
     installmentPurchases,
     tarjetas,
     cuotasTarjetaPagadasKeys,
@@ -200,6 +242,7 @@ export async function fetchAllData(): Promise<SupabaseSnapshot> {
 /** Snapshot para migración / merge local → Supabase (respeta orden FK). */
 export type PersistedExpenseSnapshot = {
   weeklyRecords: WeeklyExpenseRecord[];
+  ingresosSemanales: IngresoSemanal[];
   installmentPurchases: InstallmentPurchase[];
   tarjetas: TarjetaCredito[];
   cuotasTarjetaPagadasKeys: string[];
@@ -223,6 +266,13 @@ export async function pushPersistedSnapshotToSupabase(
         .from("tarjetas")
         .upsert(snapshot.tarjetas.map(fromTarjeta), { onConflict: "id" });
       if (error) errParts.push(`tarjetas: ${error.message}`);
+    }
+
+    if (snapshot.ingresosSemanales.length > 0) {
+      const { error } = await sb
+        .from("ingresos_semanales")
+        .upsert(snapshot.ingresosSemanales.map(fromIngreso), { onConflict: "id" });
+      if (error) errParts.push(`ingresos_semanales: ${error.message}`);
     }
 
     if (snapshot.weeklyRecords.length > 0) {
@@ -397,6 +447,31 @@ export async function deletePagadaKey(key: string) {
     if (error) console.error("deletePagadaKey:", error);
   } catch (err) {
     console.error("deletePagadaKey:", err);
+  }
+}
+
+export async function upsertIngreso(ing: IngresoSemanal) {
+  try {
+    const sb = getSupabase();
+    const { error } = await sb
+      .from("ingresos_semanales")
+      .upsert(fromIngreso(ing), { onConflict: "id" });
+    if (error) console.error("upsertIngreso:", error);
+  } catch (err) {
+    console.error("upsertIngreso:", err);
+  }
+}
+
+export async function deleteIngresoRecord(id: string) {
+  try {
+    const sb = getSupabase();
+    const { error } = await sb
+      .from("ingresos_semanales")
+      .delete()
+      .eq("id", id);
+    if (error) console.error("deleteIngresoRecord:", error);
+  } catch (err) {
+    console.error("deleteIngresoRecord:", err);
   }
 }
 
