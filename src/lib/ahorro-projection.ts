@@ -1,6 +1,5 @@
 import {
   differenceInCalendarWeeks,
-  differenceInMonths,
   isValid,
   max,
   parse,
@@ -13,7 +12,7 @@ export type AhorroProjectionResult = {
   semanasTotales: number;
   /** Semana del plan en curso, primera = 1. */
   semanaActualDelPlan: number;
-  /** Sueldos completos contados dentro del plan (floor de meses). */
+  /** Sueldos que llegan durante el plan (meses cuyo día 1 cae dentro del período). */
   sueldosCantidad: number;
   /** sueldosCantidad × sueldoActual */
   totalIngresos: number;
@@ -29,8 +28,8 @@ export type AhorroProjectionResult = {
 /**
  * Presupuesto con arrastre:
  *
- * 1. Contá cuántos sueldos completos cobrás entre fechaInicio y fechaObjetivo
- *    (floor de meses, porque el sueldo llega el primer día hábil del mes).
+ * 1. Contá cuántos sueldos llegan durante el plan: meses cuyo día 1 cae
+ *    después de fechaInicio y antes o el día de fechaObjetivo.
  * 2. Total disponible = sueldos × sueldo − meta.
  * 3. Presupuesto semanal = total disponible / semanas del plan.
  * 4. Arrastre = presupuesto acumulado de semanas cerradas − gasto real registrado.
@@ -75,18 +74,19 @@ export function computeAhorroProjection(input: {
 
   if (lunesObjetivo < lunesInicio) return null;
 
-  /** Semanas del plan: del lunes de inicio al lunes de la meta, ambas inclusivas. */
+  // Si el objetivo cae en lunes, ese lunes abre una semana nueva que ya está
+  // fuera del plan; no se suma +1. Si cae en otro día, se incluye la semana parcial.
+  const objetivoEsLunes = objetivoDate.getDay() === 1;
   const semanasTotales = Math.max(
     1,
-    differenceInCalendarWeeks(lunesObjetivo, lunesInicio, { weekStartsOn: 1 }) + 1
+    differenceInCalendarWeeks(lunesObjetivo, lunesInicio, { weekStartsOn: 1 }) +
+      (objetivoEsLunes ? 0 : 1)
   );
 
-  /**
-   * Sueldos completos: floor de meses entre fechaInicio y fechaObjetivo.
-   * Ej: 13,3 meses → 13 sueldos (el sueldo llega el primer día hábil del mes,
-   * así que el del último mes incompleto no se cuenta).
-   */
-  const sueldosCantidad = Math.max(0, differenceInMonths(objetivoDate, inicioDate));
+  // Contamos cuántos "1° de mes" caen estrictamente después de inicioDate
+  // y en o antes de objetivoDate. Eso equivale exactamente a los sueldos
+  // que llegan durante el plan (el del mes de inicio ya está en el saldo inicial).
+  const sueldosCantidad = contarSueldos(inicioDate, objetivoDate);
   const totalIngresos = sueldosCantidad * sueldoActual;
   const disponible = totalIngresos - metaAhorro;
   const presupuestoBaseSemanal = disponible / semanasTotales;
@@ -138,6 +138,27 @@ export function computeAhorroProjection(input: {
     saldoArrastre,
     presupuestoEstaSemana,
   };
+}
+
+function contarSueldos(inicioDate: Date, objetivoDate: Date): number {
+  let count = 0;
+  let year = inicioDate.getFullYear();
+  let month = inicioDate.getMonth() + 1;
+  if (month > 11) {
+    month = 0;
+    year++;
+  }
+  while (true) {
+    const primero = new Date(year, month, 1);
+    if (primero > objetivoDate) break;
+    count++;
+    month++;
+    if (month > 11) {
+      month = 0;
+      year++;
+    }
+  }
+  return count;
 }
 
 function formatLocalYMD(d: Date): string {
