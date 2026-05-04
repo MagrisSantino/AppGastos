@@ -3,7 +3,7 @@
 import * as React from "react";
 import { format, parseISO, startOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
-import { PiggyBank } from "lucide-react";
+import { Plus, PiggyBank, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +20,7 @@ import {
   parseMoneyInputToMinorUnits,
 } from "@/lib/money";
 import { useExpenseStore } from "@/stores/use-expense-store";
-import type { AhorroMetasConfig } from "@/types/ahorro";
+import type { AhorroMetasConfig, CambioSueldo } from "@/types/ahorro";
 
 export function AhorrosView() {
   const isLoading = useExpenseStore((s) => s.isLoading);
@@ -31,6 +31,9 @@ export function AhorrosView() {
   const [metaStr, setMetaStr] = React.useState("");
   const [fechaInicio, setFechaInicio] = React.useState("");
   const [fecha, setFecha] = React.useState("");
+  const [cambios, setCambios] = React.useState<
+    Array<{ id: string; mesISO: string; montoStr: string }>
+  >([]);
   const [formError, setFormError] = React.useState<string | null>(null);
   const [savedHint, setSavedHint] = React.useState(false);
 
@@ -52,11 +55,39 @@ export function AhorrosView() {
         : format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd")
     );
     setFecha(ahorroMetas.fechaObjetivo || "");
+    setCambios(
+      (ahorroMetas.cambiosSueldo ?? []).map((c) => ({
+        id: c.id,
+        mesISO: c.mesISO,
+        montoStr: c.monto > 0 ? minorUnitsToInputString(c.monto) : "",
+      }))
+    );
   }, [ahorroMetas]);
 
   const fieldClass =
     "min-h-11 w-full text-base md:min-h-9 md:text-sm touch-manipulation";
   const labelClass = "mb-1.5 block text-sm font-medium text-foreground";
+
+  function addCambio() {
+    setCambios((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), mesISO: "", montoStr: "" },
+    ]);
+  }
+
+  function removeCambio(id: string) {
+    setCambios((prev) => prev.filter((c) => c.id !== id));
+  }
+
+  function updateCambioMes(id: string, mesISO: string) {
+    setCambios((prev) => prev.map((c) => (c.id === id ? { ...c, mesISO } : c)));
+  }
+
+  function updateCambioMonto(id: string, montoStr: string) {
+    setCambios((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, montoStr } : c))
+    );
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -84,11 +115,26 @@ export function AhorrosView() {
       return;
     }
 
+    const cambiosSueldo: CambioSueldo[] = [];
+    for (const c of cambios) {
+      if (!c.mesISO || !/^\d{4}-\d{2}$/.test(c.mesISO)) {
+        setFormError("Elegí un mes válido en cada actualización de sueldo.");
+        return;
+      }
+      const monto = parseMoneyInputToMinorUnits(c.montoStr);
+      if (monto === null || monto < 0) {
+        setFormError("Revisá los montos en las actualizaciones de sueldo.");
+        return;
+      }
+      cambiosSueldo.push({ id: c.id, mesISO: c.mesISO, monto });
+    }
+
     const payload: AhorroMetasConfig = {
       sueldoActual: sueldo,
       metaAhorro: meta,
       fechaInicio: fechaInicio.trim(),
       fechaObjetivo: fecha.trim(),
+      cambiosSueldo,
     };
     setAhorroMetas(payload);
     setSavedHint(true);
@@ -137,6 +183,61 @@ export function AhorrosView() {
                 className={fieldClass}
               />
             </div>
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className={labelClass} style={{ margin: 0 }}>
+                  Aumentos de sueldo durante el plan
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={addCambio}
+                  className="h-7 gap-1 px-2 text-xs"
+                >
+                  <Plus className="size-3.5" />
+                  Agregar
+                </Button>
+              </div>
+              {cambios.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Sin aumentos registrados. El sueldo base aplica todo el plan.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {cambios.map((c) => (
+                    <div key={c.id} className="flex items-center gap-2">
+                      <Input
+                        type="month"
+                        value={c.mesISO}
+                        onChange={(ev) => updateCambioMes(c.id, ev.target.value)}
+                        className="min-h-11 md:min-h-9"
+                      />
+                      <Input
+                        inputMode="decimal"
+                        autoComplete="off"
+                        placeholder="nuevo sueldo"
+                        value={c.montoStr}
+                        onChange={(ev) =>
+                          updateCambioMonto(c.id, ev.target.value)
+                        }
+                        className="min-h-11 md:min-h-9"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeCambio(c.id)}
+                        className="shrink-0"
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div>
               <label htmlFor="ahorro-meta" className={labelClass}>
                 Meta de ahorro (total a reunir)

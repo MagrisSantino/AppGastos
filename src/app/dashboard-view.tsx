@@ -439,6 +439,7 @@ export function DashboardView() {
         metaAhorro: ahorroMetas.metaAhorro,
         fechaInicio: ahorroMetas.fechaInicio,
         fechaObjetivo: ahorroMetas.fechaObjetivo,
+        cambiosSueldo: ahorroMetas.cambiosSueldo,
       }),
     [weeklyRecords, ahorroMetas]
   );

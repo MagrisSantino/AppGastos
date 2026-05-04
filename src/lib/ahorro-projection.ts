@@ -6,6 +6,7 @@ import {
   startOfWeek,
 } from "date-fns";
 
+import type { CambioSueldo } from "@/types/ahorro";
 import type { WeeklyExpenseRecord } from "@/types/expenses";
 
 export type AhorroProjectionResult = {
@@ -40,6 +41,7 @@ export function computeAhorroProjection(input: {
   metaAhorro: number;
   fechaInicio: string;
   fechaObjetivo: string;
+  cambiosSueldo?: CambioSueldo[];
   /** Solo tests: referencia de "hoy" para el arrastre. */
   ahora?: Date;
 }): AhorroProjectionResult | null {
@@ -83,11 +85,14 @@ export function computeAhorroProjection(input: {
       (objetivoEsLunes ? 0 : 1)
   );
 
-  // Contamos cuántos "1° de mes" caen estrictamente después de inicioDate
-  // y en o antes de objetivoDate. Eso equivale exactamente a los sueldos
-  // que llegan durante el plan (el del mes de inicio ya está en el saldo inicial).
-  const sueldosCantidad = contarSueldos(inicioDate, objetivoDate);
-  const totalIngresos = sueldosCantidad * sueldoActual;
+  // Para cada mes que cae dentro del plan, aplicamos el sueldo vigente
+  // según los cambios registrados. Si no hay cambios, es sueldoActual × meses.
+  const { totalIngresos, sueldosCantidad } = calcularIngresos(
+    inicioDate,
+    objetivoDate,
+    sueldoActual,
+    input.cambiosSueldo ?? []
+  );
   const disponible = totalIngresos - metaAhorro;
   const presupuestoBaseSemanal = disponible / semanasTotales;
   const ahorroSemanalRequerido = metaAhorro / semanasTotales;
@@ -140,25 +145,38 @@ export function computeAhorroProjection(input: {
   };
 }
 
-function contarSueldos(inicioDate: Date, objetivoDate: Date): number {
+function calcularIngresos(
+  inicioDate: Date,
+  objetivoDate: Date,
+  sueldoBase: number,
+  cambios: CambioSueldo[]
+): { totalIngresos: number; sueldosCantidad: number } {
+  const sorted = [...cambios].sort((a, b) => a.mesISO.localeCompare(b.mesISO));
+  let total = 0;
   let count = 0;
   let year = inicioDate.getFullYear();
-  let month = inicioDate.getMonth() + 1;
-  if (month > 11) {
-    month = 0;
+  let month0 = inicioDate.getMonth() + 1; // avanza un mes (0-indexed)
+  if (month0 > 11) {
+    month0 = 0;
     year++;
   }
   while (true) {
-    const primero = new Date(year, month, 1);
+    const primero = new Date(year, month0, 1);
     if (primero > objetivoDate) break;
+    const mesISO = `${year}-${String(month0 + 1).padStart(2, "0")}`;
+    let salario = sueldoBase;
+    for (const c of sorted) {
+      if (c.mesISO <= mesISO) salario = c.monto;
+    }
+    total += salario;
     count++;
-    month++;
-    if (month > 11) {
-      month = 0;
+    month0++;
+    if (month0 > 11) {
+      month0 = 0;
       year++;
     }
   }
-  return count;
+  return { totalIngresos: total, sueldosCantidad: count };
 }
 
 function formatLocalYMD(d: Date): string {
