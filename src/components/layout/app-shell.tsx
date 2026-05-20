@@ -52,7 +52,7 @@ function NavLinks({
             href={href}
             onClick={onNavigate}
             className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              "flex min-h-[44px] touch-manipulation items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors [-webkit-tap-highlight-color:transparent]",
               active
                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                 : "text-sidebar-foreground/80 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"
@@ -80,10 +80,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [init]);
 
   return (
-    <div className="flex min-h-svh w-full flex-col bg-background md:flex-row">
-      {/* Escritorio: sidebar */}
+    <div className="flex min-h-svh w-full flex-col bg-background min-[744px]:flex-row">
+      {/* Tablet/Escritorio: sidebar */}
       <aside
-        className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex"
+        className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar min-[744px]:flex"
         aria-label="Navegación principal"
       >
         <div className="flex h-14 items-center border-b border-sidebar-border px-4">
@@ -98,7 +98,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-h-svh flex-1 flex-col">
         {/* Móvil: barra superior + menú en sheet */}
-        <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-border bg-card px-3 md:hidden">
+        <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-border bg-card px-3 min-[744px]:hidden">
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild>
               <Button
@@ -130,8 +130,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </span>
         </header>
 
-        <main className="flex-1 pb-[calc(4.75rem+env(safe-area-inset-bottom))] md:pb-0">
-          <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6 md:py-8">
+        <main className="flex-1 pb-[calc(4.75rem+env(safe-area-inset-bottom))] min-[744px]:pb-0">
+          <div className="mx-auto w-full max-w-6xl px-4 py-6 min-[744px]:px-5 min-[744px]:py-7 md:px-6 md:py-8">
             {cloudSyncError ? (
               <div
                 role="alert"
@@ -183,7 +183,7 @@ function MobileBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur-sm md:hidden"
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 pb-[max(0.375rem,env(safe-area-inset-bottom))] backdrop-blur-sm min-[744px]:hidden"
       aria-label="Accesos rápidos"
     >
       <div className="mx-auto flex max-w-lg items-stretch justify-around gap-0.5 px-1 pt-1.5">

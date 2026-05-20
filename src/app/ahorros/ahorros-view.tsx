@@ -156,7 +156,7 @@ export function AhorrosView() {
         </p>
       </div>
 
-      <Card className="max-w-xl border-border shadow-sm">
+      <Card className="max-w-xl md:max-w-2xl border-border shadow-sm">
         <CardHeader className="space-y-1">
           <CardTitle className="flex items-center gap-2 text-lg">
             <PiggyBank className="size-5 opacity-80" aria-hidden />
@@ -252,44 +252,46 @@ export function AhorrosView() {
                 className={fieldClass}
               />
             </div>
-            <div>
-              <label htmlFor="ahorro-fecha-inicio" className={labelClass}>
-                Fecha de inicio del plan
-              </label>
-              <Input
-                id="ahorro-fecha-inicio"
-                type="date"
-                value={fechaInicio}
-                onChange={(ev) => setFechaInicio(ev.target.value)}
-                className={fieldClass}
-                required
-              />
-              {fechaInicio ? (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Los cortes desde esta fecha cuentan para el arrastre.{" "}
-                  {format(parseISO(fechaInicio), "EEEE d MMMM yyyy", {
-                    locale: es,
-                  })}
-                </p>
-              ) : null}
-            </div>
-            <div>
-              <label htmlFor="ahorro-fecha" className={labelClass}>
-                Fecha objetivo
-              </label>
-              <Input
-                id="ahorro-fecha"
-                type="date"
-                value={fecha}
-                onChange={(ev) => setFecha(ev.target.value)}
-                className={fieldClass}
-                required
-              />
-              {fecha ? (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {format(parseISO(fecha), "EEEE d MMMM yyyy", { locale: es })}
-                </p>
-              ) : null}
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div>
+                <label htmlFor="ahorro-fecha-inicio" className={labelClass}>
+                  Fecha de inicio del plan
+                </label>
+                <Input
+                  id="ahorro-fecha-inicio"
+                  type="date"
+                  value={fechaInicio}
+                  onChange={(ev) => setFechaInicio(ev.target.value)}
+                  className={fieldClass}
+                  required
+                />
+                {fechaInicio ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Los cortes desde esta fecha cuentan para el arrastre.{" "}
+                    {format(parseISO(fechaInicio), "EEEE d MMMM yyyy", {
+                      locale: es,
+                    })}
+                  </p>
+                ) : null}
+              </div>
+              <div>
+                <label htmlFor="ahorro-fecha" className={labelClass}>
+                  Fecha objetivo
+                </label>
+                <Input
+                  id="ahorro-fecha"
+                  type="date"
+                  value={fecha}
+                  onChange={(ev) => setFecha(ev.target.value)}
+                  className={fieldClass}
+                  required
+                />
+                {fecha ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {format(parseISO(fecha), "EEEE d MMMM yyyy", { locale: es })}
+                  </p>
+                ) : null}
+              </div>
             </div>
 
             {formError ? (

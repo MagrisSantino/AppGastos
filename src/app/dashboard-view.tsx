@@ -830,7 +830,7 @@ export function DashboardView() {
               <CardDescription>Últimas semanas con gasto calculado</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-56 w-full sm:h-64">
+              <div className="h-56 w-full sm:h-64 md:h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={gastoChartData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -892,7 +892,7 @@ export function DashboardView() {
               <CardDescription>Efectivo + banco por semana</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-56 w-full sm:h-64">
+              <div className="h-56 w-full sm:h-64 md:h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={patrimonioChartData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -967,7 +967,7 @@ export function DashboardView() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-56 w-full sm:h-64">
+              <div className="h-56 w-full sm:h-64 md:h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={mediaMovilData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -1017,7 +1017,7 @@ export function DashboardView() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-56 w-full sm:h-64">
+                <div className="h-56 w-full sm:h-64 md:h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={gastosVsPromedioData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -1076,7 +1076,7 @@ export function DashboardView() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-56 w-full sm:h-64">
+              <div className="h-56 w-full sm:h-64 md:h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={proyeccionBarData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -1327,7 +1327,7 @@ function DeudaPorTarjetaPie({
             Sin cuotas en {mesLabelLargo(mesPie)}.
           </p>
         ) : (
-          <div className="h-56 w-full sm:h-64">
+          <div className="h-56 w-full sm:h-64 md:h-72">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie

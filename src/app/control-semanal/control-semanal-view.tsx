@@ -232,48 +232,50 @@ export function ControlSemanalView() {
         </CardHeader>
         <CardContent className="px-4 pb-4 sm:px-6">
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            <div className="flex flex-col gap-2">
-              <label htmlFor="fecha-corte" className={labelClass}>
-                Fecha (lunes de corte)
-              </label>
-              <Input
-                id="fecha-corte"
-                type="date"
-                value={fecha}
-                onChange={(ev) => setFecha(ev.target.value)}
-                className={fieldClass}
-                required
-              />
-            </div>
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+              <div className="flex flex-col gap-2">
+                <label htmlFor="fecha-corte" className={labelClass}>
+                  Fecha (lunes de corte)
+                </label>
+                <Input
+                  id="fecha-corte"
+                  type="date"
+                  value={fecha}
+                  onChange={(ev) => setFecha(ev.target.value)}
+                  className={fieldClass}
+                  required
+                />
+              </div>
 
-            <div className="flex flex-col gap-2">
-              <label htmlFor="efectivo" className={labelClass}>
-                Efectivo
-              </label>
-              <Input
-                id="efectivo"
-                inputMode="decimal"
-                autoComplete="off"
-                placeholder="0"
-                value={efectivoStr}
-                onChange={(e) => setEfectivoStr(e.target.value)}
-                className={fieldClass}
-              />
-            </div>
+              <div className="flex flex-col gap-2">
+                <label htmlFor="efectivo" className={labelClass}>
+                  Efectivo
+                </label>
+                <Input
+                  id="efectivo"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="0"
+                  value={efectivoStr}
+                  onChange={(e) => setEfectivoStr(e.target.value)}
+                  className={fieldClass}
+                />
+              </div>
 
-            <div className="flex flex-col gap-2">
-              <label htmlFor="transferencia" className={labelClass}>
-                Transferencia / bancos
-              </label>
-              <Input
-                id="transferencia"
-                inputMode="decimal"
-                autoComplete="off"
-                placeholder="0"
-                value={transferStr}
-                onChange={(e) => setTransferStr(e.target.value)}
-                className={fieldClass}
-              />
+              <div className="flex flex-col gap-2">
+                <label htmlFor="transferencia" className={labelClass}>
+                  Transferencia / bancos
+                </label>
+                <Input
+                  id="transferencia"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="0"
+                  value={transferStr}
+                  onChange={(e) => setTransferStr(e.target.value)}
+                  className={fieldClass}
+                />
+              </div>
             </div>
 
             <div className="flex flex-col gap-2">
@@ -328,7 +330,7 @@ export function ControlSemanalView() {
               la evolución del gasto por semana.
             </p>
           ) : (
-            <div className="h-64 w-full min-w-0 sm:h-72">
+            <div className="h-64 w-full min-w-0 sm:h-72 md:h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={chartData}
